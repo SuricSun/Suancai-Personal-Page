@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+  <meta charset="UTF-8">
+  <!--  <link rel="icon" href="/favicon.ico">-->
+  <link rel="stylesheet" href="/src/assets/main.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suancai</title>
+</head>
+<body>
+<script>
+  /**
+   * Just at the start of the body element, set the theme css to avoid glitch
+   */
+  function initThemeMode() {
+    let v = localStorage.getItem('theme')
+    if (!v) {
+      // * Default to dark
+      v = 'light-mode'
+    }
+    document.body.classList.add(v)
+    localStorage.setItem('theme', v)
+  }
+
+  function initFontStyle() {
+    let v = localStorage.getItem('font')
+    if (!v) {
+      // * Default to normal
+      v = 'normal-font-size'
+    }
+    document.body.classList.add(v)
+    localStorage.setItem('font', v)
+  }
+
+  initThemeMode()
+  initFontStyle()
+</script>
+<div id="app"></div>
+<script type="module" src="/src/main.js"></script>
+<canvas id="star-vas"
+        style="width: 100%;height: 100%;position: fixed;top: 0;left: 0;z-index: -1000;pointer-events: none"></canvas>
+<script>
+  let vs = `#version 300 es
+    #define POSITION_LOCATION 0
+
+    precision highp float;
+    precision highp int;
+
+    layout(location = POSITION_LOCATION) in vec2 pos;
+    out vec2 v_pos;
+
+    void main()
+    {
+        v_pos = pos;
+        gl_Position = vec4(pos, 0, 1.0);
+    }
+    `
+  let ps = `#version 300 es
+    precision highp float;
+    precision highp int;
+
+    in vec2 v_pos;
+
+    uniform vec4 packed;
+
+    out vec4 color;
+
+    uniform sampler2D logoTex;
+
+    vec2 fakeRandom(vec2 seed) {
+        seed = seed + 0.1;
+        // float time = packed[0] / 8.;
+        float time = 0.;
+        float x = dot(seed, vec2(123.4, 234.5));
+        float y = dot(seed, vec2(234.5, 345.6));
+        vec2 randVec = vec2(x, y);
+        randVec = sin(randVec);
+        randVec = randVec * 43758.5453;
+        randVec = sin(randVec + time);
+        return (randVec * 1.0);
+    }
+
+    void main()
+    {
+        vec4 col = vec4(0, 0, 0, 0);
+        vec2 iResolution = vec2(packed[2], packed[3]);
+        vec2 I = (v_pos + vec2(0., -.0 )) * iResolution * vec2(1, 1);
+        float iTime = packed[0];
+        float iScale = packed[1];
+
+        vec2
+        r = iResolution.xy,
+        p = (I+I-r) / r.y * mat2(4,-3,3,4);
+
+        float
+        t = iTime,
+        T = t + .1 * p.x,
+        i = 0.0;
+
+        for(col *= i; i < 64.; i++) {
+          // * the vec below changes the color of the falling star
+          col += (cos(sin(i) * vec4(12, 36, 14, 44)) + 1.) * exp(sin(i + .1 * i * T)) /
+            // * the vec in the length function changes the speed of the star looks like (long trailing)
+            length(max(p, p / vec2(8, 1)));
+          p += 2. * cos(i * vec2(11, 9) + i * i + T * .2);
+        }
+        // col /= 64.;
+        col = tanh(.01 * p.y * vec4(0, 1, 2, 3) + col * col / 1e4);
+
+        vec2 uv = vec2(vec2(v_pos.x, v_pos.y * (iResolution.y / iResolution.x))) * 32.;
+        vec2 gv = fract(uv);
+        vec2 id = floor(uv);
+        vec2 rand = (fakeRandom(id) + vec2(1, 1)) / 4.;
+        float dist = distance(rand, gv);
+        dist = pow(dist, .5);
+        dist = 1. - dist;
+        vec4 sky = tanh(.01 * p.y * vec4(0, 1, 2, 3));
+        float luminance = pow(dot(sky.rgb, vec3(0.299, 0.587, 0.114)), 1.) * 8.;
+        float v = step(.9, dist);
+
+        //color = vec4(v, v, v, 0);
+        //color = vec4(luminance,luminance,luminance, .1);
+        //color = mix(col, vec4(v, v, v, v), 1. - luminance);
+        col = col + vec4(v, v, v, 0) * (1. - luminance);
+        //col *= col.a;
+        //color = col;
+        color = col;
+    }
+    `
+  let chainsawPs = `#version 300 es
+precision highp float;
+precision highp int;
+
+uniform float iTime;
+uniform vec3 iResolution;
+uniform float iFrame;
+
+in vec2 v_pos;
+
+const vec3 BLOOD_COLOR = vec3(179, 236, 15) / 255.f;
+const vec3 BACKGROUND_COLOR = vec3(61, 153, 245) / 255.f;
+const vec3 BRIGHT_RED = vec3(254, 81, 51) / 255.f;
+const vec3 TEETH_COLOR = vec3(224, 195, 226) / 255.f * 1.2f;
+const vec3 BORDER_COLOR = vec3(0.01f);
+const vec3 SKIN_COLOR = vec3(158, 0, 24) / 255.f;
+const vec3 HIGHLIGHT_COLOR = vec3(240, 48, 18) / 255.f * 1.2f;
+const vec3 HAIR_COLOR = vec3(68, 0, 50) / 255.f;
+const vec3 HAIR_SHADOW_COLOR = vec3(28, 0, 62) / 255.f;
+
+const float PI = acos(-1.f);
+const float TAU = 2.f * PI;
+
+#define sat(x) clamp(x, 0., 1.)
+mat2 rot(float a) {
+  float c = cos(a), s = sin(a);
+  return mat2(c, -s, s, c);
+
+}
+float pow2(float x) {
+  return x * x;
+
+}
+float dot2(in vec2 v) {
+  return dot(v, v);
+
+}
+float cross2(in vec2 a, in vec2 b) {
+  return a.x * b.y - a.y * b.x;
+
+}
+
+float smooth_hill(float x, float off, float width, float gap) {
+  x -= off;
+  float start = width, end = width + max(0.f, gap);
+  return smoothstep(-end, -start, x) - smoothstep(start, end, x);
+
+}
+float remap(float val, float start1, float stop1, float start2, float stop2) {
+  return start2 + (val - start1) / (stop1 - start1) * (stop2 - start2);
+
+}
+float remap01(float val, float start, float stop) {
+  return start + val * (stop - start);
+
+}
+
+vec3 erot(vec3 p, vec3 ax, float ro) {
+  return mix(dot(ax, p) * ax, p, cos(ro)) + sin(ro) * cross(ax, p);
+
+}
+
+float hash11(float p) {
+  p = fract(p * .1031f);
+  p *= p + 33.33f;
+  p *= p + p;
+  return fract(p);
+
+}
+
+float hash21(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * .1031f);
+  p3 += dot(p3, p3.yzx + 3.33f);
+  return fract((p3.x + p3.y) * p3.z);
+
+}
+
+float noise(in vec2 x) {
+  vec2 p = floor(x);
+  vec2 f = fract(x);
+  f = f * f * (3.0f - 2.0f * f);
+    // f *= f * f * (f * (f * 6. - 15.) + 10.);
+
+  float a = hash21(p + vec2(0, 0));
+  float b = hash21(p + vec2(1, 0));
+  float c = hash21(p + vec2(0, 1));
+  float d = hash21(p + vec2(1, 1));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+
+}
+
+mat2 rot45 = mat2(0.707f, -0.707f, 0.707f, 0.707f);
+
+float voronoi(vec2 uv) {
+  float d = 1e9f;
+  vec2 id = floor(uv);
+  uv = fract(uv);
+
+  for(float i = -1.f; i <= 1.f; i++) {
+    for(float j = -1.f; j <= 1.f; j++) {
+      vec2 nbor = vec2(i, j);
+      d = min(d, length(uv - noise(id + nbor) - nbor));
+
+    }
+
+  }
+  return d;
+
+}
+
+vec2 clog(vec2 z) {
+  float r = length(z);
+  return vec2(log(r), atan(z.y, z.x));
+
+}
+
+float smin(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0f) / k;
+  return min(a, b) - h * h * k * (1.0f / 4.0f);
+
+}
+float smax(in float a, in float b, in float k) {
+  float h = max(k - abs(a - b), 0.0f);
+  return max(a, b) + h * h * k * (1.0f / 4.0f);
+
+}
+
+float sd_circle(vec2 p, float r) {
+  return length(p) - r;
+
+}
+float sd_box(vec2 p, vec2 h) {
+  p = abs(p) - h;
+  return length(max(p, 0.f)) + min(0.f, max(p.x, p.y));
+
+}
+
+float sd_hook(vec2 p, float r, float a, float s) {
+  float base = max(sd_circle(p, r), -p.x * sign(s));
+  p.x -= r;
+  p *= rot(a);
+  p.x += r;
+  float crop = sd_circle(p, r);
+
+  return max(base, -crop);
+
+}
+float sd_line(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a, ba = b - a;
+  float k = clamp(dot(pa, ba) / dot(ba, ba), 0.f, 1.f);
+  return distance(p, mix(a, b, k));
+
+}
+float sd_line_y(vec2 p, float h, float r) {
+  p.y -= clamp(p.y, 0.0f, h);
+  return length(p) - r;
+
+}
+
+float op_rem_lim(in float p, in float s, in float l) {
+  return p - s * clamp(round(p / s), -l, l);
+
+}
+
+float sd_trig_isosceles(in vec2 p, in vec2 q) {
+  p.x = abs(p.x);
+  vec2 a = p - q * clamp(dot(p, q) / dot(q, q), 0.0f, 1.0f);
+  vec2 b = p - q * vec2(clamp(p.x / q.x, 0.0f, 1.0f), 1.0f);
+  float s = -sign(q.y);
+  vec2 d = min(vec2(dot(a, a), s * (p.x * q.y - p.y * q.x)), vec2(dot(b, b), s * (p.y - q.y)));
+  return -sqrt(d.x) * sign(d.y);
+
+}
+
+float sd_uneven_capsule(vec2 p, vec2 pa, vec2 pb, float ra, float rb) {
+  p -= pa;
+  pb -= pa;
+  float h = dot(pb, pb);
+  vec2 q = vec2(dot(p, vec2(pb.y, -pb.x)), dot(p, pb)) / h;
+
+  q.x = abs(q.x);
+  float b = ra - rb;
+  vec2 c = vec2(sqrt(h - b * b), b);
+
+  float k = cross2(c, q);
+  float m = dot(c, q), n = dot(q, q);
+
+  if(k < 0.0f) {
+    return sqrt(h * (n)) - ra;
+
+  } else if(k >
+    c.x) {
+    return sqrt(h * (n + 1.0f - 2.0f * q.y)) - rb;
+
+  }
+  return m - ra;
+
+}
+
+// TODO: rb?!?!?!?!?
+float sd_egg(in vec2 p, in float ra, in float rb) {
+  const float k = sqrt(3.0f);
+  p.x = abs(p.x);
+  float r = ra - rb;
+  return ((p.y < 0.0f) ? length(vec2(p.x, p.y)) - r : (k * (p.x + r) < p.y) ? length(vec2(p.x, p.y - k * r)) : length(vec2(p.x + r, p.y)) - 2.0f * r) -
+    rb;
+
+}
+
+vec3 sd_bezier_base(in vec2 pos, in vec2 A, in vec2 B, in vec2 C) {
+  vec2 a = B - A;
+  vec2 b = A - 2.0f * B + C;
+  vec2 c = a * 2.0f;
+  vec2 d = A - pos;
+
+  float kk = 1.0f / dot(b, b);
+  float kx = kk * dot(a, b);
+  float ky = kk * (2.0f * dot(a, a) + dot(d, b)) / 3.0f;
+  float kz = kk * dot(d, a);
+  float t = 0.f;
+
+  float res = 0.0f;
+  float sgn = 1.0f;
+
+  float p = ky - kx * kx;
+  float p3 = p * p * p;
+  float q = kx * (2.0f * kx * kx - 3.0f * ky) + kz;
+  float h = q * q + 4.0f * p3;
+
+  if(h >= 0.0f) {  // 1 root
+    h = sqrt(h);
+    vec2 x = (vec2(h, -h) - q) / 2.0f;
+    vec2 uv = sign(x) * pow(abs(x), vec2(1.0f / 3.0f));
+    t = clamp(uv.x + uv.y - kx, 0.0f, 1.0f);
+    vec2 q = d + (c + b * t) * t;
+    res = dot2(q);
+    sgn = cross2(c + 2.0f * b * t, q);
+
+  } else {  // 3 roots
+    float z = sqrt(-p);
+    float v = acos(q / (p * z * 2.0f)) / 3.0f;
+    float m = cos(v);
+    float n = sin(v) * 1.732050808f;
+    vec2 tt = clamp(vec2(m + m, -n - m) * z - kx, 0.0f, 1.0f);
+    vec2 qx = d + (c + b * tt.x) * tt.x;
+    float dx = dot2(qx), sx = cross2(c + 2.0f * b * tt.x, qx);
+    vec2 qy = d + (c + b * tt.y) * tt.y;
+    float dy = dot2(qy), sy = cross2(c + 2.0f * b * tt.y, qy);
+    if(dx < dy) {
+      res = dx;
+      sgn = sx;
+
+    } else {
+      res = dy;
+      sgn = sy;
+
+    }
+    t = res;
+
+  }
+
+  return vec3(res, sgn, t);
+
+}
+vec2 sd_bezier(in vec2 pos, in vec2 A, in vec2 B, in vec2 C) {
+  vec3 bz = sd_bezier_base(pos, A, B, C);
+  return vec2(sqrt(bz.x) * sign(bz.y), bz.z);
+
+}
+
+// https ://www.shadertoy.com/view/3dtBR4
+float sd_bezier_convex(in vec2 pos, in vec2 A, in vec2 B, in vec2 C) {
+  if(cross2(C - A, B - A) < 0.0f) {
+    vec2 t = A;
+    A = C;
+    C = t;
+
+  }
+  float sa = cross2(A - 0.f, pos - 0.f);
+  float sc = cross2(C - A, pos - A);
+  float s0 = cross2(0.f - C, pos - C);
+  float o = cross2(C - A, -A);
+
+  float ts = (1.0f - 2.0f * float(sa < 0.f && sc < 0.f && s0 < 0.f));
+  float ts2 = (1.0f - 2.0f * float(sa > 0.f && sc > 0.f && s0 > 0.f));
+  ts = o > 0.f ? ts2 : ts;
+
+  vec3 bz = sd_bezier_base(pos, A, B, C);
+  return sqrt(bz.x) * sign(sc < 0.f ? 1.0f : -bz.y) * ts;
+
+}
+
+vec4 sd_bezier_rep(in vec2 pos, in vec2 A, in vec2 B, in vec2 C) {
+  vec2 bz = sd_bezier(pos, A, B, C);
+  float t = bz.y;
+  vec2 tangent = normalize((2.0f - 2.0f * t) * (B - A) + 2.0f * t * (C - B));
+  vec2 normal = vec2(tangent.y, -tangent.x);
+  mat2 mm = mat2(normal, tangent);
+  pos = mix(mix(A, B, t), mix(B, C, t), t) - pos;
+  return vec4(bz.x, pos * mm, t);
+
+}
+
+vec4 alpha_blending(vec4 d, vec4 s) {
+//return mix(d,s,s.a);
+  vec4 res = vec4(0.f);
+  res.a = mix(1.f, d.a, s.a);
+  if(res.a == 0.f) {
+    res.rgb = vec3(0.f);
+
+  } else {
+    res.rgb = mix(d.rgb * d.a, s.rgb, s.a) / res.a;
+
+  }
+  return res;
+
+}
+void alpha_blend_inplace(inout vec4 d, in vec4 s) {
+  d = alpha_blending(d, s);
+
+}
+
+float AAstep(float thre, float val) {
+  return smoothstep(-.5f, .5f, (val - thre) / min(0.03f, fwidth(val - thre)));
+
+}
+float AAstep(float val) {
+  return AAstep(val, 0.f);
+
+}
+
+vec4 render(float d, vec4 color) {
+  return vec4(color.rgb, color.a * AAstep(d));
+
+}
+vec4 render(float d, vec3 color) {
+  return render(d, vec4(color, 1.0f));
+
+}
+
+vec4 render_stroked_masked(float d, vec4 color, float stroke, float stroke_mask) {
+  vec4 stroke_layer = vec4(vec3(0.01f), AAstep(d));
+  vec4 color_layer = vec4(color.rgb, AAstep(d + stroke));
+  return vec4(mix(mix(stroke_layer.rgb, color_layer.rgb, AAstep(stroke_mask)), color_layer.rgb, color_layer.a), stroke_layer.a * color.a);
+
+}
+vec4 render_stroked(float d, vec4 color, float stroke) {
+  return render_stroked_masked(d, color, stroke, 1.f);
+
+}
+vec4 render_stroked(float d, vec3 color, float stroke) {
+  return render_stroked(d, vec4(color, 1.f), stroke);
+
+}
+
+#define LayerFlat(d,color) alpha_blend_inplace(final_color,render(d,color))
+
+#define LayerStroked(d,color,stroke)\\
+  alpha_blend_inplace(final_color, render_stroked(d, color, stroke))
+
+#define LayerStrokedMask(d,color,stroke,mask)\\
+  alpha_blend_inplace(final_color,\\
+    render_stroked_masked(d, color, stroke, mask))
+
+void draw_highlight(inout vec4 final_color, float highlight) {
+  LayerFlat(highlight, HIGHLIGHT_COLOR);
+  float s = 0.15f;
+  alpha_blend_inplace(final_color, vec4(HIGHLIGHT_COLOR, 0.07f * smoothstep(s, 0.f, highlight)));
+}
+
+// Power by Pudi
+// Email: krems.pudi@gmail.com
+// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+//
+// Thanks to Flopine, provod, YX, NuSan, slerpy, wrighter, Shane, z0rg, bendzz, Tater
+// BigWings, FabriceNeyret, iq and Blackle for sharing their knowledge
+//
+// Stinky Girl
+//
+// More anime girls on shadertoy:
+//
+// Code:002 by Pidhorskyi
+// https://www.shadertoy.com/view/tlsfzf
+
+float fbm(vec2 st, float n) {
+  st *= 3.f;
+  float s = .5f;
+  float ret = 0.f;
+  for(float i = min(0.f, float(iFrame));
+  i < n;
+  i ++) {
+  ret += noise(st) * s;
+  st *= 2.5f, s /= 2.f;
+  st *= rot45;
+  st.y += iTime * 0.05f;
+  }
+  return ret / 8.;
+}
+
+vec3 background(vec2 uv) {
+//return vec3(0.8,0.8,0.8);
+uv *= rot(- PI / 2.f);
+uv = clog(uv);
+uv.x -= iTime * 0.1f;
+uv /= PI;
+float fa1 = fbm(uv * rot(sin(uv.x) * 0.001f), 5.f) * 4.;
+float fb1 = fbm(uv, 5.f) * 10.;
+
+float fa2 = fbm(uv + sin(uv.x * 15.f) + fa1 * 5.f, 4.f) * 4.;
+float fb2 = fbm(uv + fb1, 5.f) * 4.;
+
+  //float fa3=fbm(uv * 1.5 + fa2, 5.);
+
+vec3 col = vec3(0);
+col = mix(col, BACKGROUND_COLOR, pow(sat(fb2 * 2.4f), 1.5f));
+col = mix(col, vec3(0.4f, 0.3f, 0.7f), pow(sat(fb2 * .7f), 1.9f));
+col = mix(col, vec3(0.3f, 0.6f, 0.6f), pow(sat(fa2 * 1.5f), 20.f) * 0.7f);
+col = mix(col, vec3(0.f), voronoi(uv * 10.f + fa1 * 4.f) * .8f);
+
+col.yz *= rot(- 0.16f);
+
+return col;
+}
+
+struct Params {
+float stroke;
+float displacement;
+float time;
+float shift;
+};
+
+float sd_teeth(vec2 coords, float t, float width, float spacing, vec2 size, vec2 fang_range, float fang_length, float x) {
+// center on the curve middle point
+coords.y -= (t - 0.5f) * width;
+coords.y = op_rem_lim(coords.y, spacing, width + spacing / 1.3f);
+coords *= rot(- 1.57f);
+// make fangs longer
+fang_range *= spacing / width * 2.f;
+float off = fang_length * smoothstep(fang_range.x, fang_range.y, abs(t * 2.f - 1.f));
+size += vec2(x * off, off);
+// move outwards
+coords.y += size.y;
+float tooth = sd_trig_isosceles(coords, size);
+return tooth;
+}
+
+float make_mouth(inout vec4 final_color, vec2 uv, Params p) {
+uv *= 1.15f;
+uv.y -= - 0.02f;
+uv *= rot(0.03f);
+float poff = remap01(p.shift, - 0.05f, 0.05f);
+float lip_off = remap01(p.shift, 0.f, 0.2f);
+
+vec2 a = vec2(- 0.5f, 0.0f + poff);
+vec2 b = vec2(0.f, - 0.70f);
+vec2 c = vec2(0.5f, 0.0f + poff);
+
+float width = 3.8f;
+float spacing = .26f;
+vec2 size = vec2(0.25f, 0.07f);
+vec4 curve_lower = sd_bezier_rep(uv, a, b, c);
+float teeth_lower = sd_teeth(curve_lower.yz, curve_lower.w, width, spacing, size, vec2(2.4f, 5.3f), 0.031f, - 8.f);
+
+vec2 la = c - vec2(0.04f, 0.02f);
+vec2 lb = vec2(0.f, 0.1f + lip_off);
+vec2 lc = a - vec2(- 0.04f, 0.02f);
+
+width = 3.7f;
+spacing = .31f;
+size = vec2(0.24f, 0.09f);
+vec4 curve_upper = sd_bezier_rep(uv, la, lb, lc);
+float teeth_upper = sd_teeth(curve_upper.yz, curve_upper.w, width, spacing, size, vec2(3.f, 4.f), 0.06f, - 1.f);
+
+float mouth = max(curve_lower.x, curve_upper.x);
+LayerFlat(mouth, SKIN_COLOR * 0.35f);
+vec2 tuv = uv - vec2(0.f, - 0.48f + poff);
+tuv.x = abs(tuv.x);
+float tongue = sd_line(tuv, vec2(0.1f, 0.20f), vec2(- 0.3f, 0.f)) - 0.19f +
+  p.displacement * 0.002f;
+tongue = max(tongue, mouth);
+LayerFlat(tongue, BRIGHT_RED);
+LayerStroked(teeth_upper, TEETH_COLOR, p.stroke * 1.3f);
+LayerStroked(teeth_lower, TEETH_COLOR, p.stroke * 1.3f);
+float border = smin(abs(curve_lower.x), abs(curve_upper.x), 0.1f);
+LayerFlat(border - 0.004f, BORDER_COLOR);
+
+vec2 huv = uv - vec2(0.06f, - 0.38f + poff * 0.4f);
+huv *= rot(- 0.15f);
+huv *= vec2(0.3f, 1.f);
+huv.y -= sqrt(pow2(huv.x) + 0.0001f) * 0.5f;
+float highlight = sd_circle(huv, max(0.015f, smoothstep(- 0.8f, 1.f, p.shift) * 0.02f));
+draw_highlight(final_color, highlight);
+
+return curve_lower.x - p.stroke * 0.5f;
+}
+
+vec2 head_tranform(vec2 uv, Params p, float amp) {
+vec2 head_uv = uv;
+head_uv.y -= 0.85f;
+head_uv -= vec2(0.04f, 0.1f) * p.shift * amp;
+head_uv *= rot(remap01(p.shift, 0.f, 0.05f));
+return head_uv;
+}
+
+vec2 head_tranform_point(vec2 p, Params par, float amp) {
+vec2 head_p = p;
+head_p += vec2(0.04f, 0.1f) * par.shift * amp;
+head_p *= rot(- remap01(par.shift, 0.f, 0.05f));
+return head_p;
+}
+
+float make_head(inout vec4 final_color, vec2 uv, Params p) {
+uv -= vec2(0.00f, 0.8f);
+float egg = sd_egg(vec2(uv.x, - uv.y), 0.95f, 0.3f);
+
+vec2 euv = uv - vec2(0.84f, - 0.71f);
+float b = dot(euv - 0.35f, vec2(- 4.88f, 0.2f));
+float ear = sd_uneven_capsule(euv, vec2(0.04f, - 0.04f), vec2(0.17f, 0.33f), 0.07f, 0.20f);
+ear = smax(ear, - b, 0.4f);
+float head = smin(egg, ear, 0.13f);
+LayerStroked(head, SKIN_COLOR, p.stroke);
+
+float snail = sd_uneven_capsule(euv, vec2(0.04f, 0.05f), vec2(0.17f, 0.35f), 0.10f, 0.13f);
+snail = smax(snail, - b, 0.87f);
+snail = smax(snail, - egg, 0.4f);
+snail = smax(snail, - sd_circle(euv - vec2(0.01f, 0.15f), 0.05f), 0.54f);
+LayerStroked(snail, vec3(0.5f, 0.1f, 0.1f) * 0.4f, p.stroke * 0.7f);
+float snail_inner = sd_uneven_capsule(euv - pow2(uv.x) * 0.00f, vec2(0.08f, 0.15f), vec2(0.09f, 0.3f), 0.03f, 0.07f);
+snail_inner = max(snail_inner, snail);
+LayerStroked(snail_inner, vec3(0.5f, 0.1f, 0.1f) * 0.25f, p.stroke * 0.9f);
+
+float highlight = 1e9f;
+float base = abs(egg - 0.015f) - 0.01f;
+float right = base + smooth_hill(uv.x, - 0.62f, - 0.26f, 0.505f);
+highlight = min(highlight, right);
+float left = base + smooth_hill(uv.x, 0.56f, - 0.39f, 0.58f) * 0.1f;
+left = max(left, dot(uv, vec2(2.14f, - 0.13f)) - 1.82f);
+highlight = min(highlight, left);
+highlight = max(highlight, egg);
+float on_ear = abs(ear - 0.015f) - 0.01f;
+on_ear += smooth_hill(uv.x, 1.f, - 0.61f, 0.98f) * 0.1f;
+on_ear = max(on_ear, dot(uv, vec2(- 0.54f, 0.54f)) + 0.88f);
+on_ear = max(on_ear, ear);
+highlight = min(highlight, on_ear);
+
+draw_highlight(final_color, highlight);
+
+return head;
+}
+
+void make_nose(inout vec4 final_color, vec2 uv, Params p) {
+uv.y -= - 0.02f;
+vec2 nuv = vec2(abs(uv.x), uv.y);
+uv -= vec2(0.08f, 0.14f + remap01(p.shift, 0.f, 0.15f));
+nuv -= vec2(0.08f, 0.14f + remap01(p.shift, 0.f, 0.15f));
+vec2 def = vec2(- 1.06f, 0.21f);
+nuv.x -= max(0.0f, dot(nuv, def));
+float shadow = sd_line(uv, vec2(- 0.02f, 0.03f), vec2(0.05f, 0.04f)) - 0.02f;
+float ds = sd_line(uv, vec2(0.05f, 0.06f), vec2(0.06f, 0.08f + p.shift * 0.06f)) - 0.01f;
+shadow = smin(shadow, ds, 0.10f);
+float nostrils = sd_circle(nuv, 0.04f);
+shadow = max(shadow, - nostrils + 0.008f);
+nostrils = abs(nostrils) - 0.004f;
+nostrils = max(nostrils, dot(nuv - vec2(0.f, 0.025f), vec2(- 0.06f, - 0.21f)));
+LayerFlat(nostrils, BORDER_COLOR);
+draw_highlight(final_color, shadow);
+}
+
+vec2 translate_rotate(in vec2 p, in vec2 off, in float a) {
+p = p - off;
+p *= rot(a);
+return p;
+}
+
+float intersection(float d1, float d2) {
+float dmin = min(abs(d1), abs(d2));
+return dmin * sign(d1) * sign(d2);
+}
+
+float make_body(inout vec4 final_color, vec2 uv, Params p) {
+vec2 left_shoulder = vec2(0.98f, - 0.33f), left_top = vec2(0.51f, 1.06f);
+vec2 a = left_shoulder, b = vec2(- 0.001f, - 0.29f), c = left_top;
+float base = sd_bezier_convex(uv, a, b, c);
+float body = base;
+
+vec2 right_shoulder = vec2(- 1.16f, - 0.22f), right_top = vec2(- 0.37f, 1.06f);
+
+right_top += head_tranform_point(vec2(1.f), p, 50.f) * 0.05f;
+
+a = right_top, b = vec2(- 0.16f, - 0.30f), c = right_shoulder;
+base = sd_bezier_convex(uv, a, b, c);
+body = intersection(body, base);
+
+a = left_top, c = right_top, b = (a + c) / 2.f - vec2(0.f, 0.1f);
+base = sd_bezier_convex(uv, a, b, c);
+body = intersection(body, base);
+
+vec2 right_side = vec2(- 2.14f, - 1.71f);
+vec2 left_side = vec2(2.07f, - 2.17f);
+
+a = right_side, c = left_side, b = (a + c) / 2.f + vec2(0.f, - 0.1f);
+base = sd_bezier_convex(uv, a, b, c);
+body = intersection(body, base);
+
+a = right_shoulder, b = vec2(- 2.3f, - 0.02f), c = right_side;
+float rbase = sd_bezier_convex(uv, a, b, c);
+body = intersection(body, rbase);
+
+a = left_side, b = vec2(2.79f, - 0.24f), c = left_shoulder;
+float lbase = sd_bezier_convex(uv, a, b, c);
+body = intersection(body, lbase);
+
+float arm = sd_line(uv, vec2(1.6f, - 1.03f), vec2(2.76f, - 1.73f)) - 0.5f;
+body = smin(body, arm, 0.1f);
+
+vec2 huv = head_tranform(uv, p, 0.5f) - vec2(0.f, - 0.15f);
+float head_shadow = sd_egg(vec2(huv.x, - huv.y), 0.5f, 0.07f);
+head_shadow = max(head_shadow, body);
+
+// collar bones
+float areas = 1e9f, strokes = 1e9f;
+a = vec2(- 0.28f, 0.09f), b = vec2(- 0.07f, - 0.53f), c = vec2(- 0.64f, - 0.56f);
+base = sd_bezier_convex(uv, a, b, c);
+areas = intersection(areas, base);
+b = vec2(- 0.09f, - 0.63f);
+base = sd_bezier_convex(uv, a, b, c);
+areas = intersection(areas, base);
+
+a = vec2(- 1.27f, - 0.28f), c = vec2(- 0.26f, - 0.60f), b = vec2(- 1.06f, - 0.52f);
+float bone_base = sd_bezier(uv, a, b, c).x;
+strokes = min(strokes, abs(bone_base) - 0.005f);
+areas = max(areas, bone_base);
+vec2 tuv = uv + vec2(1.11f, 0.345f);
+tuv *= rot(- 2.72f);
+float edge = sd_trig_isosceles(tuv, vec2(0.3f, 0.2f)) - 0.1f;
+edge = max(edge, bone_base);
+areas = min(areas, edge);
+c = vec2(1.23f, - 0.43f), a = vec2(0.22f, - 0.60f), b = vec2(1.18f, - 0.60f);
+bone_base = sd_bezier(uv, a, b, c).x;
+strokes = min(strokes, abs(bone_base) - 0.005f);
+tuv = uv + vec2(- 1.09f, 0.47f);
+tuv *= rot(- 3.3f);
+edge = sd_trig_isosceles(tuv, vec2(0.3f, 0.2f)) - 0.1f;
+edge = max(edge, bone_base);
+areas = min(areas, edge);
+a = vec2(- 0.24f, - 0.61f), c = vec2(0.20f, - 0.6f), b = vec2(- 0.01f, - 0.84f);
+strokes = smin(strokes, abs(sd_bezier(uv, a, b, c).x) - 0.005f, 0.02f);
+
+a = vec2(0.28f, 0.08f), b = vec2(0.14f, - 0.51f), c = vec2(0.51f, - 0.60f);
+base = sd_bezier_convex(uv, a, b, c);
+areas = intersection(areas, base);
+b = vec2(0.069f, - 0.62f);
+base = sd_bezier_convex(uv, a, b, c);
+areas = intersection(areas, base);
+
+// arms
+
+a = vec2(1.70f, - 1.17f), b = vec2(1.52f, - 1.81f), c = vec2(5.63f, - 4.82f);
+vec2 bz = sd_bezier(uv, a, b, c);
+areas = min(areas, abs(bz.x) - 0.6f * smoothstep(- 0.04f, 0.91f, bz.y));
+a = vec2(- 1.31f, - 1.09f), b = vec2(- 1.20f, - 1.48f), c = vec2(- 1.63f, - 2.13f);
+bz = sd_bezier(uv, a, b, c);
+areas = min(areas, abs(bz.x) - 0.05f * smoothstep(- 0.11f, 0.39f, bz.y));
+
+// chest
+a = vec2(- 0.26f, - 0.98f), b = vec2(0.07f, - 1.12f), c = vec2(0.23f, - 2.24f);
+bz = sd_bezier(uv, a, b, c);
+float cleavage = abs(bz.x) - 0.1f * smoothstep(- 0.07f, 0.9f, bz.y) -
+  0.025f * pow2(sin(bz.y * 6.32f + 12.76f));
+areas = min(areas, cleavage);
+
+float w = 0.003f;
+float on_neck = sd_line_y(uv - vec2(0.17f, - 0.08f), 0.3f, w * 2.f);
+on_neck = smin(on_neck, sd_line_y(uv - vec2(0.16f, 0.02f), 0.2f, w * 2.f), 0.02f);
+vec2 luv = translate_rotate(uv, vec2(0.21f, 0.f), 0.1f);
+on_neck = min(on_neck, sd_line_y(luv, 0.2f, w * 1.5f));
+
+float weirmo = sin(uv.x * 10.f + p.displacement * 24.f + 3.1f) * 0.003f;
+LayerStroked(body, SKIN_COLOR, p.stroke);
+LayerFlat(on_neck, BLOOD_COLOR);
+LayerFlat(head_shadow, vec4(SKIN_COLOR * 0.01f, 0.5f));
+// TODO : should be the same color as head shadow
+LayerStrokedMask(areas, vec4(vec3(0.3f, 0.1f, 0.1f) * .25f, 0.9f), p.stroke, weirmo);
+LayerFlat(strokes + weirmo, BORDER_COLOR);
+
+float hbase = abs(body - 0.015f) - 0.01f;
+float highlight = hbase + smooth_hill(uv.x, 1.94f, - 1.05f, 0.55f) * 0.05f;
+highlight = min(highlight, hbase + smooth_hill(uv.x, - 1.63f, - 0.49f, 0.28f) * 0.05f);
+highlight = max(highlight, body);
+draw_highlight(final_color, highlight);
+
+return body;
+}
+
+float make_hair_back(inout vec4 final_color, vec2 uv, Params p) {
+// right side
+vec2 c = vec2(1.16f, 1.69f), b = vec2(1.49f, 0.69f), a = vec2(3.36f, - 0.04f);
+c = head_tranform_point(c, p, .75f);
+vec2 base = sd_bezier(uv, a, b, c);
+float hair = max(base.x, - uv.x);
+vec2 cuv = translate_rotate(uv - vec2(1.f, 1.f) * p.shift * 0.01f, vec2(- 0.19f, - 3.03f), - 1.11f);
+float cuts = sd_hook(cuv, 4.22f, 0.25f, 1.f);
+cuv = translate_rotate(uv - vec2(1.f, 1.f) * p.shift * 0.02f, vec2(- 1.48f, - 2.51f), 5.8f);
+cuts = min(cuts, sd_hook(cuv, 4.22f, 0.1f, 1.f));
+cuv = translate_rotate(uv, vec2(- 2.65f, - 1.53f), 5.8f);
+cuts = min(cuts, sd_hook(cuv, 4.22f, 0.25f, 1.f));
+cuv = translate_rotate(uv, vec2(- 3.71f, - 0.12f), 6.24f);
+cuts = min(cuts, sd_hook(cuv, 4.22f, 0.25f, 1.f));
+
+float highlight = abs(base.x + 0.020f) - 0.008f;
+highlight = max(highlight, base.x);
+
+// left side
+a = vec2(- 1.53f, 2.5f), c = vec2(- 1.66f, 0.64f), b = vec2(- 0.76f, 0.90f);
+a = head_tranform_point(a, p, 1.f);
+float left_base = sd_bezier_convex(uv, a, b, c);
+a = vec2(- 1.56f, 0.66f), b = vec2(- 2.98f, 0.47f), c = vec2(- 3.15f, - 0.42f);
+c = head_tranform_point(c, p, 1.f);
+left_base = min(left_base, sd_bezier_convex(uv, a, b, c));
+left_base = min(left_base, uv.y);
+hair = min(hair, max(left_base, uv.x));
+cuv = translate_rotate(uv, vec2(- 1.01f, - 1.51f), 0.73f);
+cuts = min(cuts, sd_hook(cuv - vec2(- 1.f, 1.f) * p.shift * 0.02f, 2.22f, 0.25f, - 1.f));
+cuv = translate_rotate(uv, vec2(1.55f, - 2.34f), 0.3f);
+cuts = min(cuts, sd_hook(cuv - vec2(- 1.f, 0.f) * p.shift * 0.02f, 4.22f, 0.05f, - 1.f));
+cuv = translate_rotate(uv, vec2(2.0f, - 2.33f), 0.33f);
+cuts = min(cuts, sd_hook(cuv, 4.22f, 0.3f, - 1.f));
+hair = max(hair, - cuts);
+
+float left_highlight = abs(left_base + 0.025f) - 0.011f;
+left_highlight = max(left_highlight, left_base);
+left_highlight = max(left_highlight, uv.x + 0.8f);
+left_highlight = max(left_highlight, - uv.y + 0.3f);
+highlight = min(highlight, left_highlight);
+vec2 luv = translate_rotate(uv - vec2(- 1.f, 1.f) * p.shift * 0.02f, vec2(- 0.95f, - 1.49f), 0.72f);
+float clight = sd_hook(luv, 2.22f, 0.25f, - 1.f);
+luv = translate_rotate(uv - vec2(1.f, 1.f) * p.shift * 0.01f, vec2(- 0.33f, - 3.00f), - 1.06f);
+clight = min(clight, sd_hook(luv, 4.22f, 0.25f, 1.f));
+clight = max(hair + p.stroke * 0.9f, clight);
+highlight = min(highlight, clight);
+
+vec2 huv = (uv + vec2(0.02f, 1.02f)) * vec2(2.f, 1.f);
+huv = head_tranform(huv, p, 1.f);
+vec3 hair_color = mix(HAIR_COLOR, HAIR_SHADOW_COLOR, AAstep(sd_circle(huv, 1.6f), 0.f));
+LayerStroked(hair, hair_color, p.stroke * 1.2f);
+
+draw_highlight(final_color, highlight);
+
+return hair;
+}
+
+void make_hair_front(inout vec4 final_color, vec2 uv, Params p, float dhead, float dbody, float dbhair) {
+vec2 head_uv = head_tranform(uv, p, 1.f);
+vec2 cuv = head_uv - vec2(5.14f, - 0.81f);
+float right_hair = sd_circle(cuv, 5.99f);
+right_hair = abs(right_hair) - 0.2f;
+right_hair = max(right_hair, cuv.x);
+right_hair = max(right_hair, - dbody);
+
+float hbase = abs(right_hair - 0.015f) - 0.01f;
+float highlight = hbase + smooth_hill(uv.y, 0.42f, - 0.67f, 1.09f) * 0.1f;
+highlight = max(highlight, right_hair);
+highlight = max(highlight, uv.x + 0.7f);
+
+vec2 suv = uv - vec2(2.26f, 0.13f);
+suv *= rot(0.13f);
+float right_hair_shadow = sd_hook(suv, 3.1f, 0.19f, - 1.f);
+right_hair_shadow = max(right_hair_shadow, - dbody);
+
+float skin_shadow = - sd_circle(head_uv - vec2(0.91f, - 0.32f), 1.51f);
+skin_shadow = max(skin_shadow, dhead);
+skin_shadow = max(skin_shadow, - right_hair);
+skin_shadow = max(skin_shadow, head_uv.x);
+
+vec2 a = vec2(- 0.22f, 1.53f), c = vec2(- 2.9f, - 1.52f), b = vec2(- 1.11f, - 1.04f);
+a = head_tranform_point(a, p, .3f);
+vec2 vuv = uv;
+vec2 base = sd_bezier(vuv, a, b, c);
+float right_curl = base.x;
+right_curl = abs(right_curl) -
+  remap(sin(base.y * 4.93f + 1.93f), - 1.f, 1.f, 0.01f, 0.14f) +
+  smoothstep(0.43f, 1.94f, base.y) * 0.1f;
+vec2 huv = uv - vec2(- 3.21f, 2.74f);
+huv -= 0.1f * p.shift;
+huv *= rot(0.64f);
+skin_shadow = min(skin_shadow, sd_hook(huv, 3.43f, - 0.1f, 1.f));
+
+hbase = abs(right_curl - 0.015f) - 0.01f;
+float clight = hbase + smooth_hill(base.y, 0.31f, - 0.15f, 0.24f) * 0.1f;
+clight = max(clight, right_curl);
+clight = max(clight, dot(uv, vec2(0.28f, - 0.19f)) + 0.26f);
+highlight = min(highlight, clight);
+
+a = vec2(1.26f, 1.02f), c = vec2(1.00f, - 0.24f), b = vec2(1.55f, 0.43f);
+a = head_tranform_point(a, p, .3f);
+base = sd_bezier(uv, a, b, c);
+float left_curl = base.x, t = base.y, tt = base.y;
+a = c, c = vec2(1.28f, - 1.75f), b = vec2(0.32f, - 1.07f);
+left_curl = abs(left_curl) - remap(sin(t * - 2.05f + 3.6f), - 1.f, 1.f, 0.01f, 0.20f);
+base = sd_bezier(uv, a, b, c);
+float sec = base.x;
+t = 1.f - base.y;
+sec = abs(sec) - remap(sin(t * - 2.05f + 3.6f), - 1.f, 1.f, 0.01f, 0.20f);
+left_curl = min(left_curl, sec);
+huv = translate_rotate(uv, vec2(1.99f, - 1.3f), 0.47f);
+float lcurl_shadow = sd_hook(huv, 1.5f, 0.2f, - 1.f);
+lcurl_shadow = max(lcurl_shadow, left_curl + p.stroke);
+huv = translate_rotate(uv, vec2(- 0.19f, 0.95f), 0.05f);
+float sh = sd_hook(huv, 1.5f, 0.2f, 1.f);
+sh = max(sh, - left_curl);
+sh = max(sh, - dbody);
+sh = max(sh, dbhair + p.stroke * 1.2f);
+lcurl_shadow = min(lcurl_shadow, sh);
+
+hbase = abs(left_curl - 0.015f) - 0.01f;
+clight = hbase + smooth_hill(tt, 0.54f, - 0.46f, 0.7f) * 0.1f;
+clight = max(clight, left_curl);
+clight = max(clight, dot(uv, vec2(- 0.47f, 0.07f)) + 0.62f);
+highlight = min(highlight, clight);
+
+// LayerFlat(skin_shadow, vec4(SKIN_COLOR * 0.3f, 0.5f));
+LayerFlat(skin_shadow, vec4(final_color.rgb * 0.2f, 0.5f));
+float mask = dot(head_uv, vec2(5.13f, 1.31f)) + 3.81f;
+LayerStrokedMask(right_hair, vec4(HAIR_COLOR, 1.f), p.stroke, mask);
+mask = dot(suv, vec2(- 3.86f, - 0.54f)) + - 12.f;
+LayerStrokedMask(right_hair_shadow, vec4(HAIR_SHADOW_COLOR, 1.f), p.stroke * 1.4f, mask);
+
+LayerStroked(right_curl, HAIR_COLOR, p.stroke * 1.1f);
+mask = dot(uv, vec2(0.6f, - 0.48f)) + - 0.33f;
+LayerStrokedMask(left_curl, vec4(HAIR_COLOR, 1.f), p.stroke * 1.4f, mask);
+LayerFlat(lcurl_shadow, vec4(HAIR_SHADOW_COLOR, 1.f));
+
+draw_highlight(final_color, highlight);
+}
+
+void make_blood(inout vec4 final_color, vec2 uv, Params p, float dmouth, float dhead) {
+vec2 head_uv = head_tranform(uv, p, 1.f);
+float blood = 1e9f;
+
+float w = 0.003f;
+vec2 luv = translate_rotate(head_uv, vec2(0.64f, 0.04f), - 0.53f);
+float lines = sd_line_y(luv, 0.15f, w);
+luv = translate_rotate(head_uv, vec2(0.66f, 0.07f), - 0.53f);
+lines = min(lines, sd_line_y(luv, 0.11f, w));
+luv = translate_rotate(head_uv, vec2(0.68f, 0.09f), - 0.63f);
+lines = min(lines, sd_line_y(luv, 0.09f, w * 1.5f));
+blood = min(blood, lines);
+
+luv = translate_rotate(head_uv, vec2(0.55f, - 0.18f), - 0.1f);
+float on_chin = sd_line_y(luv, 0.15f, 0.015f);
+on_chin = smin(on_chin, sd_circle(head_uv - vec2(0.57f, - 0.24f), 0.015f), 0.09f);
+float cut_plane = dot(head_uv, vec2(0.71f, 0.52f)) - 0.36f;
+on_chin = max(on_chin, cut_plane);
+blood = min(blood, on_chin);
+
+float on_mouth = sd_circle(head_uv - vec2(0.24f, - 0.53f), 0.016f);
+on_mouth = smin(on_mouth, sd_line_y(head_uv - vec2(0.235f, - 0.53f), 0.34f, w * 2.5f), 0.05f);
+on_mouth = max(on_mouth, - sd_line_y(head_uv - vec2(0.22f, - 0.535f), 0.19f, w * 3.5f));
+float poff = remap01(p.shift, - 0.05f, 0.05f);
+luv = translate_rotate(uv, vec2(0.19f + poff * 0.3f, 0.64f + poff * 1.40f), 0.9f);
+float s = 0.12f;
+on_mouth = smin(on_mouth, sd_line_y(luv / s, 1.4f, 0.0025f) * s - fbm(head_uv * 2.73f + 0.1f, 4.f) * s, 0.06f);
+on_mouth = smin(on_mouth, dmouth + 0.004f, 0.07f);
+on_mouth = max(on_mouth, - dmouth + 0.002f);
+blood = min(blood, on_mouth);
+
+LayerFlat(blood, BLOOD_COLOR);
+}
+
+out vec4 fragColor;
+
+void main() {
+
+vec2 fragCoord = (v_pos/2.+vec2(0.5,0.5)) * iResolution.xy;
+
+// fragColor = vec4(iResolution.xy,0,1);
+// return/;
+
+vec2 uv = (2.f * fragCoord - iResolution.xy) / iResolution.y;
+
+uv *= 1.5f;
+uv.y -= 0.1f;
+float time = iTime;
+
+float t = (time) + 0.1f;
+uv += (vec2(fbm(vec2(t, 0.f), 3.f), fbm(vec2(t, 1.f), 3.f)) * 2.f - 1.f) * 0.025f *
+  (1.f - length(uv * 0.05f));
+Params p;
+p.time = time;
+p.shift = cos(p.time) * 0.5f + 0.5f;
+p.displacement = fbm(uv * 2.91f, 2.f) * 0.42f;
+p.stroke = fwidth(uv.y) * 0.5f + p.displacement * 0.05f;
+
+uv *= rot(0.05f);
+
+vec4 final_color = vec4(vec3(0.051f), 1.f);
+final_color.rgb = background(uv);
+
+float dbhair = make_hair_back(final_color, uv, p);
+float dbody = make_body(final_color, uv, p);
+vec2 head_uv = head_tranform(uv, p, 1.f);
+float dhead = 1e9f, dmouth = 1e9f;
+if(uv.y >
+  - 0.1f) {
+dhead = make_head(final_color, head_uv, p);
+dmouth = make_mouth(final_color, head_uv, p);
+make_nose(final_color, head_uv, p);
+make_blood(final_color, uv, p, dmouth, dhead);
+}
+make_hair_front(final_color, uv, p, dhead, dbody, dbhair);
+
+final_color.rgb = mix(final_color.rgb, vec3(0.f), smoothstep(1.50f, - 2.84f, uv.y));
+
+vec3 col = final_color.rgb;
+
+col = sat(col);
+col = pow(col, vec3(1.f / 1.9f));
+col = smoothstep(0.f, 1.f, col);
+col = pow(col, vec3(1.74f, 1.71f, 1.48f));
+  // col = pow(col, vec3(2.33,1.47,2.1));
+  // col = pow(col, vec3(2.15,1.29,1.43));
+  // col = pow(col, vec3(1. / 2.2));
+
+vec2 in_uv = fragCoord / iResolution.xy;
+col *= sat(pow(500.f * in_uv.x * in_uv.y * (1.f - in_uv.x) * (1.f - in_uv.y), .256f));
+
+col += noise(uv * 500.f) * .015f * smoothstep(- 1.47f, 0.58f, uv.y);
+fragColor = vec4(col, 1.0f);
+
+}
+  `
+
+  function createShader(gl, source, type) {
+    let shader = gl.createShader(type)
+    gl.shaderSource(shader, source)
+    gl.compileShader(shader)
+    return shader
+  }
+
+  function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
+    let program = gl.createProgram()
+    let vShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER)
+    let fShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER)
+    gl.attachShader(program, vShader)
+    gl.attachShader(program, fShader)
+    gl.linkProgram(program)
+    gl.deleteShader(vShader)
+    gl.deleteShader(fShader)
+    let log = gl.getProgramInfoLog(program)
+    if (log) {
+      console.log(log)
+    }
+    log = gl.getShaderInfoLog(vShader)
+    if (log) {
+      console.log(log)
+    }
+    log = gl.getShaderInfoLog(fShader)
+    if (log) {
+      console.log(log)
+    }
+    return program
+  }
+
+  let theme = localStorage.getItem('theme')
+  let renderMode = ''
+
+  if (theme === 'dark-mode') {
+    renderMode = 'star'
+  } else if (theme === 'light-mode') {
+    renderMode = 'girl'
+  }
+
+  function Begin() {
+    let canvas = document.querySelector('#star-vas')
+    canvas.width = window.innerWidth / 2
+    canvas.height = window.innerHeight / 2
+
+    let gl = canvas.getContext('webgl2', { antialias: true, alpha: false })
+    let isWebGL2 = !!gl
+    if (!isWebGL2) {
+      alert('浏览器不支持WebGL2')
+      console.warn('浏览器不支持WebGL2')
+      return
+    }
+
+    // * 设置屏幕缓冲区为输出
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+    let program = createProgram(gl, vs, chainsawPs)
+    let programStar = createProgram(gl, vs, ps)
+
+    // * Pos data upload
+    let vertexArray = gl.createVertexArray()
+    gl.bindVertexArray(vertexArray)
+    let vertexPosLocation = 0  // set with GLSL layout qualifier
+    let vertices = new Float32Array([
+      3, 1,
+      -1, 1,
+      -1, -3
+    ])
+    let vertexPosBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
+    gl.enableVertexAttribArray(vertexPosLocation)
+    gl.vertexAttribPointer(vertexPosLocation, 2, gl.FLOAT, false, 0, 0)
+
+    // * Store uniform data
+    let transform = new Float32Array(4)
+
+    // * Get uniform location
+
+    let packedUniformLocation = gl.getUniformLocation(programStar, 'packed')
+
+    let iTimeLocation = gl.getUniformLocation(program, 'iTime')
+    let iFrameLocation = gl.getUniformLocation(program, 'iFrame')
+    let iResolutionLocation = gl.getUniformLocation(program, 'iResolution')
+
+    if (renderMode === 'girl') {
+      gl.useProgram(program)
+    } else if (renderMode === 'star') {
+      gl.useProgram(programStar)
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.clearColor(0.0, 0.0, 0.0, 0.0)
+    gl.bindVertexArray(vertexArray)
+
+    // -- Render
+    function render() {
+
+      if (renderMode === 'girl') {
+        gl.uniform1f(iTimeLocation, (window.performance.now() % (1000 * 60 * 60/*1 hour*/)) / 1000)
+        gl.uniform1f(iFrameLocation, (window.performance.now() % (1000 * 60 * 60/*1 hour*/)) / 1000)
+        gl.uniform3f(iResolutionLocation, canvas.width, canvas.height, 1)
+      } else if (renderMode === 'star') {
+        transform[0] = (window.performance.now() % (1000 * 60 * 60/*1 hour*/)) / 500/*make it quicker by divide a small number*/
+        transform[1] = Math.sin(Math.cos(transform[0])) + 16
+        transform[2] = canvas.width
+        transform[3] = canvas.height
+        gl.uniform4f(packedUniformLocation, transform[0], transform[1], transform[2], transform[3])
+      }
+
+      gl.clear(gl.COLOR_BUFFER_BIT)
+
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length)
+      requestAnimationFrame(render)
+    }
+
+    render()
+
+    window.addEventListener('message', function(event) {
+      if (event.data === 'canvas:switch') {
+        if (renderMode === 'girl') {
+          renderMode = 'star'
+          gl.useProgram(programStar)
+        } else if (renderMode === 'star') {
+          renderMode = 'girl'
+          gl.useProgram(program)
+        }
+      }
+    })
+  }
+
+  Begin()
+</script>
+</body>
+</html>

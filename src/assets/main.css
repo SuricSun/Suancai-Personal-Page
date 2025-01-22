@@ -1,0 +1,188 @@
+/*@import './base.css';*/
+
+/**
+ * Font
+ */
+@font-face {
+    font-family: 'Cascadia Mono';
+    src: url('/font/CascadiaMono.woff2') format('woff');
+}
+
+@font-face {
+    font-family: 'Smiley Sans';
+    src: url('/font/SmileySans-Oblique.ttf.woff2') format('truetype');
+}
+
+/**
+ * Define common style
+ */
+html, body {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    margin: 0;
+    overflow: hidden;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    margin: 0;
+    overflow: hidden;
+}
+
+/**
+ * Define css variable class to support light-dark-switch
+ */
+.normal-font-size {
+    --font-size: 1em;
+    --button-padding: 0.5em;
+    --button-radius: 0.5em;
+    --button-margin: 0.5em;
+}
+
+.dark-mode {
+    --bg-maj: #090a0f;
+    --bg-min: #191c26;
+    --text-color: #f6f9fe;
+    --border-color: #2a303f;
+}
+
+.light-mode {
+    --bg-maj: #ffffff;
+    --bg-min: #eeeeff;
+    --text-color: #0f1117;
+    --border-color: #e3e3e3;
+}
+
+/**
+ * Define classes and classes that use the light/dark variables
+ */
+
+body {
+    background-color: var(--bg-maj);
+    color: var(--text-color);
+    font-family: "Cascadia Mono", "Smiley Sans", sans-serif
+}
+
+.bg-maj {
+    background-color: var(--bg-maj);
+}
+
+.bg-min {
+    background-color: var(--bg-min);
+}
+
+.button {
+    width: fit-content;
+    height: fit-content;
+    font-size: var(--font-size);
+    margin: var(--button-margin);
+    border: 2px solid var(--border-color);
+    border-radius: var(--button-radius);
+    background-color: var(--bg-min);
+    padding: var(--button-padding);
+    user-select: none;
+}
+
+.button:hover {
+    scale: 1.1;
+    cursor: pointer;
+}
+
+.button:active {
+    scale: 1.0;
+    cursor: pointer;
+}
+
+.rainbow-normal:hover {
+    box-shadow: 0 calc(var(--font-size)) calc(var(--font-size) * 4) rgba(64, 0, 255, 0.5),
+    calc(var(--font-size)) 0 calc(var(--font-size) * 4) rgba(64, 0, 255, 0.5),
+    0 calc(-1 * var(--font-size)) calc(var(--font-size) * 4) rgba(0, 255, 100, 0.5),
+    calc(-1 * var(--font-size)) 0 calc(var(--font-size) * 4) rgba(255, 0, 128, 0.5);
+}
+
+.rainbow-normal:active {
+    box-shadow: 0 calc(var(--font-size)) calc(var(--font-size) * 4) rgba(255, 0, 0, 1),
+    0 calc(-1 * var(--font-size)) calc(var(--font-size) * 4) rgba(0, 128, 0, 1),
+    calc(var(--font-size)) 0 calc(var(--font-size) * 4) rgba(0, 0, 255, 1),
+    calc(-1 * var(--font-size)) 0 calc(var(--font-size) * 4) rgba(255, 105, 180, 1);
+}
+
+.rainbow-hard:hover {
+    box-shadow: 0 calc(var(--font-size)) calc(var(--font-size) * 2) rgba(64, 0, 255, 1),
+    calc(var(--font-size)) 0 calc(var(--font-size) * 2) rgba(64, 0, 255, 1),
+    0 calc(-1 * var(--font-size)) calc(var(--font-size) * 2) rgba(0, 255, 100, 1),
+    calc(-1 * var(--font-size)) 0 calc(var(--font-size) * 2) rgba(255, 0, 128, 1);
+}
+
+.rainbow-hard:active {
+    box-shadow: 0 calc(var(--font-size)) calc(var(--font-size) * 2) rgba(255, 0, 0, 1),
+    0 calc(-1 * var(--font-size)) calc(var(--font-size) * 2) rgba(0, 128, 0, 1),
+    calc(var(--font-size)) 0 calc(var(--font-size) * 2) rgba(0, 0, 255, 1),
+    calc(-1 * var(--font-size)) 0 calc(var(--font-size) * 2) rgba(255, 105, 180, 1);
+}
+
+[class*='bg-'], [class*='rainbow-'], [class*='button'], body {
+    color: var(--text-color);
+    font-size: var(--font-size);
+    transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out, scale 0.25s ease-in-out,
+    border 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
+}
+
+.f-size-2 {
+    font-size: calc(var(--font-size) * 2);
+}
+
+.f-size-1d5 {
+    font-size: calc(var(--font-size) * 1.2);
+}
+
+.f-size-1 {
+    font-size: calc(var(--font-size));
+}
+
+.f-size-0d5 {
+    font-size: calc(var(--font-size) * 0.5);
+}
+
+.flx {
+    display: flex;
+}
+
+.flx-x {
+    flex-direction: row;
+}
+
+.flx-y {
+    flex-direction: column;
+}
+
+.flx-center {
+    justify-content: center;
+    align-items: center;
+}
+
+.flx-x, .flx-y {
+    display: flex;
+}
+
+.fill-vh {
+    width: 100%;
+    height: 100%;
+}
+
+.fill-x {
+    width: 100%;
+}
+
+.fill-y {
+    height: 100%;
+}
+
+.hover-hand:hover {
+    cursor: pointer;
+}
