@@ -154,11 +154,11 @@
     {
         vec4 col = vec4(0, 0, 0, 0);
         float shakeTime = iTime / 4.;
-        vec2 I = (v_pos / 2. + vec2(0.5 + sin(shakeTime + cos(shakeTime)) * 0.05, 0.5 + cos(shakeTime + sin(shakeTime)) * 0.05)) * iResolution.xy * vec2(1, 1);
+        vec2 I = (v_pos / 1. + vec2(0.5 + sin(shakeTime + cos(shakeTime)) * 0.05, 0.5 + cos(shakeTime + sin(shakeTime)) * 0.05)) * iResolution.xy * vec2(1, 1);
 
         vec2
         r = iResolution.xy,
-        p = (I+I-r) / r.y * mat2(4,-3,3,4);
+        p = (I+I-r) / r.y * mat2(4,-4,4,4);
 
         float
         t = iTime,
