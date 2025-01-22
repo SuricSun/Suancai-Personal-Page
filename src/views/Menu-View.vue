@@ -82,10 +82,10 @@ function openGithub() {
 }
 
 /**
- * 使用的开源代码
+ * 打开<开放源码>页面
  */
 function openCodeCredit() {
-
+  // * Opens a new page to give credit to these amazing shadertoy makers
 }
 </script>
 
