@@ -1174,7 +1174,8 @@
     renderMode = 'girl'
   }
 
-  function Begin() {
+  function Begin()
+  {
     let canvas = document.querySelector('#star-vas')
     canvas.width = window.innerWidth / 2
     canvas.height = window.innerHeight / 2
@@ -1208,9 +1209,6 @@
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
     gl.enableVertexAttribArray(vertexPosLocation)
     gl.vertexAttribPointer(vertexPosLocation, 2, gl.FLOAT, false, 0, 0)
-
-    // * Store uniform data
-    let transform = new Float32Array(4)
 
     // * Get uniform location
 
@@ -1265,6 +1263,7 @@
       }
     })
   }
+
 
   Begin()
 </script>

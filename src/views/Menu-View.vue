@@ -49,7 +49,7 @@ function beginGlitch() {
   str = 'Suancai'
   menuUnderscore.value.style.visibility = 'hidden'
   menuUnderscore.value.classList.remove('twinkle-code')
-  timer.run().then(res => {
+  timer.run().then(() => {
     let template = 'Suancai'
     let idx = -1
     let itv = setInterval(() => {
