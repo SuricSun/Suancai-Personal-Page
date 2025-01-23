@@ -24,9 +24,15 @@
 
   function initFontStyle() {
     let v = localStorage.getItem('font')
-    if (!v) {
-      // * Default to normal
-      v = 'normal-font-size'
+    if (true) {
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        // 当前是手机设备
+        v = 'small-font-size'
+      } else {
+        // 当前不是手机设备
+        // * Default to normal
+        v = 'normal-font-size'
+      }
     }
     document.body.classList.add(v)
     localStorage.setItem('font', v)
@@ -1139,7 +1145,13 @@
     let shader = gl.createShader(type)
     gl.shaderSource(shader, source)
     gl.compileShader(shader)
-    return shader
+    let success = gl.getShaderParameter(shader, gl.COMPILE_STATUS)
+    if (success) {
+      return shader
+    }
+    console.log(gl.getShaderInfoLog(shader))
+    gl.deleteShader(shader)
+    return undefined
   }
 
   function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
@@ -1149,21 +1161,13 @@
     gl.attachShader(program, vShader)
     gl.attachShader(program, fShader)
     gl.linkProgram(program)
-    gl.deleteShader(vShader)
-    gl.deleteShader(fShader)
-    let log = gl.getProgramInfoLog(program)
-    if (log) {
-      console.log(log)
+    let success = gl.getProgramParameter(program, gl.LINK_STATUS)
+    if (success) {
+      return program
     }
-    log = gl.getShaderInfoLog(vShader)
-    if (log) {
-      console.log(log)
-    }
-    log = gl.getShaderInfoLog(fShader)
-    if (log) {
-      console.log(log)
-    }
-    return program
+    console.log(gl.getProgramInfoLog(program))
+    gl.deleteProgram(program)
+    return undefined
   }
 
   let theme = localStorage.getItem('theme')
@@ -1181,24 +1185,17 @@
     canvas.height = window.innerHeight / 2
 
     let gl = canvas.getContext('webgl2', { antialias: true, alpha: false })
-    let isWebGL2 = !!gl
-    if (!isWebGL2) {
+    if (!gl) {
       alert('浏览器不支持WebGL2')
       console.warn('浏览器不支持WebGL2')
       canvas.style.display = 'none'
       return
     }
 
-    // * 设置屏幕缓冲区为输出
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-
     let program = createProgram(gl, vs, chainsawPs)
     let programStar = createProgram(gl, vs, ps)
 
     // * Pos data upload
-    let vertexArray = gl.createVertexArray()
-    gl.bindVertexArray(vertexArray)
-    let vertexPosLocation = 0  // set with GLSL layout qualifier
     let vertices = new Float32Array([
       3, 1,
       -1, 1,
@@ -1207,6 +1204,10 @@
     let vertexPosBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
+
+    let vertexPosLocation = 0  // set with GLSL layout qualifier, as is defined in vertex shader
+    let vertexArray = gl.createVertexArray()
+    gl.bindVertexArray(vertexArray)
     gl.enableVertexAttribArray(vertexPosLocation)
     gl.vertexAttribPointer(vertexPosLocation, 2, gl.FLOAT, false, 0, 0)
 
@@ -1220,15 +1221,16 @@
     let iFrameLocation = gl.getUniformLocation(program, 'iFrame')
     let iResolutionLocation = gl.getUniformLocation(program, 'iResolution')
 
+    // * 设置屏幕缓冲区为输出
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null)
+    gl.clearColor(0.0, 0.0, 0.0, 0.0)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+
     if (renderMode === 'girl') {
       gl.useProgram(program)
     } else if (renderMode === 'star') {
       gl.useProgram(programStar)
     }
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.clearColor(0.0, 0.0, 0.0, 0.0)
-    gl.bindVertexArray(vertexArray)
 
     // -- Render
     function render() {
@@ -1239,13 +1241,11 @@
         gl.uniform3f(iResolutionLocation, canvas.width, canvas.height, 1)
       } else if (renderMode === 'star') {
         gl.uniform1f(iTimeLocationStar, (window.performance.now() % (1000 * 60 * 60/*1 hour*/)) / 500/*make it quicker by divide a small number*/)
-        gl.uniform2f(iMouseLocationStar, canvas.width / 2, 16)
+        gl.uniform2f(iMouseLocationStar, 0, 0) // this param is not used but upload anyway
         gl.uniform3f(iResolutionLocationStar, canvas.width, canvas.height, 1)
       }
 
-      // gl.clear(gl.COLOR_BUFFER_BIT)
-
-      gl.drawArrays(gl.TRIANGLES, 0, vertices.length)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
       requestAnimationFrame(render)
     }
 

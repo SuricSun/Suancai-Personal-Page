@@ -35,13 +35,20 @@ html, body {
 }
 
 /**
- * Define css variable class to support light-dark-switch
+ * Define css variable class to support light-dark-switch and font-size switch
  */
 .normal-font-size {
     --font-size: 1em;
     --button-padding: 0.5em;
     --button-radius: 0.5em;
     --button-margin: 0.5em;
+}
+
+.small-font-size {
+    --font-size: .8em;
+    --button-padding: 0.4em;
+    --button-radius: 0.4em;
+    --button-margin: 0.4em;
 }
 
 .dark-mode {

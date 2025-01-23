@@ -10,6 +10,7 @@ let menuSuancai = ref()
 let menuUnderscore = ref()
 
 onMounted(() => {
+  beginGlitch()
 })
 
 function setCharAt(str, index, char) {
@@ -120,14 +121,14 @@ function openCodeCredit() {
           </div>
         </div>
         <div class="flx-x" style="user-select: none;">
-          <ButtonCpnt @click="openCodeCredit" style="width: 1.5em;height: 1.5em">
+          <ButtonCpnt @click="openCodeCredit" class="svg-wh">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                  width="100%" height="100%" fill="none" viewBox="0 0 24 24">
               <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
           </ButtonCpnt>
-          <ButtonCpnt @click="openGithub" style="width: 1.5em;height: 1.5em">
+          <ButtonCpnt @click="openGithub" class="svg-wh">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                  width="100%" height="100%" fill="currentColor" viewBox="0 0 24 24">
               <path fill-rule="evenodd"
@@ -135,7 +136,7 @@ function openCodeCredit() {
                     clip-rule="evenodd" />
             </svg>
           </ButtonCpnt>
-          <ButtonCpnt @click="switchTheme" style="width: 1.5em;height: 1.5em">
+          <ButtonCpnt @click="switchTheme" class="svg-wh">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                  width="100%" height="100%" fill="none" viewBox="0 0 24 24">
               <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -217,6 +218,11 @@ function openCodeCredit() {
 
 .rotate {
   animation: rotate-kf 2s linear infinite reverse;
+}
+
+.svg-wh {
+  width: calc(var(--font-size) * 1.5);
+  height: calc(var(--font-size) * 1.5);
 }
 </style>
 
