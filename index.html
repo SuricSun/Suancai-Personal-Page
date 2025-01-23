@@ -220,15 +220,15 @@
 
     out vec4 fragColor;
 
-    const vec3 BLOOD_COLOR = vec3(179, 236, 15) / 255.;
+    const vec3 BLOOD_COLOR = vec3(150, 0, 0) / 255. * 1.;
     const vec3 BACKGROUND_COLOR = vec3(61, 153, 245) / 255.;
-    const vec3 BRIGHT_RED = vec3(254, 81, 51) / 255.;
+    const vec3 BRIGHT_RED = vec3(212, 114, 118) / 255.;
     const vec3 TEETH_COLOR = vec3(224, 195, 226) / 255. * 1.2;
     const vec3 BORDER_COLOR = vec3(0.01);
-    const vec3 SKIN_COLOR = vec3(158, 0, 24) / 255.;
-    const vec3 HIGHLIGHT_COLOR = vec3(240, 48, 18) / 255. * 1.2;
-    const vec3 HAIR_COLOR = vec3(68, 0, 50) / 255.;
-    const vec3 HAIR_SHADOW_COLOR = vec3(28, 0, 62) / 255.;
+    const vec3 SKIN_COLOR = vec3(252,224,203) / 255. * .8;
+    const vec3 HIGHLIGHT_COLOR = SKIN_COLOR * 1.2;
+    const vec3 HAIR_COLOR = vec3(174, 61, 83) / 255. * 0.8;
+    const vec3 HAIR_SHADOW_COLOR = vec3(70, 16, 34) / 255.;
 
     const float PI = acos(-1.);
     const float TAU = 2. * PI;
@@ -563,7 +563,7 @@
             st *= rot45;
             st.y += iTime * 0.05;
         }
-        return ret / 8.;
+        return ret / (-sin(iTime + cos(iTime)) * .4 + 1.);
     }
 
     vec3 background(vec2 uv) {
@@ -571,11 +571,12 @@
         uv = clog(uv);
         uv.x -= iTime * 0.1;
         uv /= PI;
-        float fa1 = fbm(uv * rot(sin(uv.x) * 0.001), 5.) * 4.;
-        float fb1 = fbm(uv, 5.) * 4.;
+        float mut = .25;
+        float fa1 = fbm(uv * rot(sin(uv.x) * 0.001), 5.) * mut;
+        float fb1 = fbm(uv, 5.) * mut;
 
-        float fa2 = fbm(uv + sin(uv.x * 15.) + fa1 * 5., 4.) * 4.;
-        float fb2 = fbm(uv + fb1, 5.) * 4.;
+        float fa2 = fbm(uv + sin(uv.x * 15.) + fa1 * 5., 4.) * mut;
+        float fb2 = fbm(uv + fb1, 5.) * mut;
 
         //float fa3 = fbm(uv * 1.5 + fa2, 5.);
 
