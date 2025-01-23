@@ -21,12 +21,12 @@ function setCharAt(str, index, char) {
 
 const randStr = '!@#$%*()-=+{}[]?/~'
 
-let str = 'Suancai'
+let str = 'root@Suancai'
 let tt = -1
 let lastIdx = -1
 let timer = new Timer().timeMs(1000).callback((t) => {
   let v = t.num / t.den
-  v = Math.floor(v * 50)
+  v = Math.floor(v * 100)
   if (v > tt) {
     let idx = Math.floor(Math.random() * str.length)
     if (idx === lastIdx) {
@@ -46,11 +46,11 @@ function beginGlitch() {
     return
   }
   glitching = true
-  str = 'Suancai'
+  str = 'root@Suancai'
   menuUnderscore.value.style.visibility = 'hidden'
   menuUnderscore.value.classList.remove('twinkle-code')
   timer.run().then(() => {
-    let template = 'Suancai'
+    let template = 'root@Suancai'
     let idx = -1
     let itv = setInterval(() => {
       if (idx < template.length) {
@@ -68,7 +68,7 @@ function beginGlitch() {
         glitching = false
         menuUnderscore.value.classList.add('twinkle-code')
       }
-    }, 200)
+    }, 50)
   })
 }
 
@@ -96,14 +96,14 @@ function openCodeCredit() {
     </div>
     <div class="fill-x flx-x flx-center"
          style="user-select: none;">
-      <div class="flx-x" style="justify-content: space-between;width: 60%">
+      <div class="flx-x" style="justify-content: space-between;width: 60%;flex-wrap: wrap">
         <div class="flx-x f-size-2 flx-center"
-             style="font-weight: bold;user-select: none;font-family: 'Cascadia Mono',serif"
+             style="font-weight: bold;user-select: none;font-family: 'Cascadia Mono',monospace"
              @mouseenter="beginGlitch" @click="beginGlitch">
           <div style="width: fit-content;height: fit-content">
             <div class="flx flx-x flx-center">
               <div ref="menuSuancai" class="gradient-text" style="width: fit-content;height: fit-content;">
-                Suancai
+                root@Suancai
               </div>
               <div ref="menuUnderscore" class="gradient-text twinkle-code"
                    style="width: fit-content;height: fit-content;">
